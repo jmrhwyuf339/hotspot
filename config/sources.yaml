@@ -1,0 +1,25 @@
+sources:
+  - name: 稀土掘金
+    url: https://juejin.cn/rss
+    type: rss
+    interest: AI工具与Agent生态
+
+  - name: Hacker News Top
+    url: https://hacker-news.firebaseio.com/v0/topstories.json
+    type: api
+    interest: AI工具与Agent生态
+
+  - name: HelloGitHub
+    url: https://hellogithub.com/rss
+    type: rss
+    interest: AI工具与Agent生态
+
+  - name: 量子位
+    url: https://www.qbitai.com/feed
+    type: rss
+    interest: AI工具与Agent生态
+
+  - name: InfoQ 中文
+    url: https://www.infoq.cn/feed
+    type: rss
+    interest: AI工具与Agent生态

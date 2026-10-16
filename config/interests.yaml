@@ -1,0 +1,15 @@
+interests:
+  - name: AI工具与Agent生态
+    weight: 10
+    keywords: [Agent, Cline, Coze, Dify, MCP, SKILLS, Claude Code, WorkBuddy, AI, LLM, GPT, Open Source, GitHub, AIGC, 大模型, 人工智能, 智能体, HelloGitHub]
+    exclude: [炒股, 招聘广告]
+
+  - name: 免费/低成本AI资源
+    weight: 10
+    keywords: [免费, 白嫖, 额度, 开源, 免费API, 平替, free, open source, API, 开源项目, 免费工具]
+    exclude: [付费课程, 订阅制]
+
+  - name: ComfyUI与本地AI图像/视频生成
+    weight: 9
+    keywords: [ComfyUI, Z-Image, MiniMax, 文生图, 图生视频, 工作流]
+    exclude: [付费SaaS]
