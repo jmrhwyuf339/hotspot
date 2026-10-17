@@ -10,11 +10,10 @@ from src.fetchers.api_fetcher import fetch_hn_top
 from src.fetchers.rss_fetcher import fetch_rss
 from src.processors.dedup import url_hash
 from src.processors.filter import match_interest
-from src.processors.scorer import calc_final_score
+from src.processors.scorer import calc_final_score, get_source_quality
 from src.utils.translator import translate_text
 
 MAX_ITEMS = 30
-SOURCE_QUALITY = 1.0  # 阶段三先固定为 1.0
 MAX_AGE_DAYS = 30     # 发布时间距今超过这么多天的条目直接丢弃
 
 
@@ -71,7 +70,9 @@ def main() -> None:
         name = source.get("name") or source.get("url", "?")
         interest = get_interest(interests, source.get("interest"))
 
-        print(f"[fetch] {name} ({source.get('type')})")
+        # 来源质量分：按 user_feedback 里的 like / hide 动态计算（阶段八）
+        quality = get_source_quality(name, conn)
+        print(f"[fetch] {name} ({source.get('type')}) | 来源质量分 {quality}")
 
         if interest is None:
             print(f"  [warn] 找不到兴趣「{source.get('interest')}」，跳过该源")
@@ -120,7 +121,7 @@ def main() -> None:
                 continue
 
             # 4) 打分 + 写入
-            final = calc_final_score(item, interest["weight"], SOURCE_QUALITY)
+            final = calc_final_score(item, interest["weight"], quality)
             published_at = item.get("published_at")
             conn.execute(
                 """

@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS items (
 );
 """
 
+CREATE_FEEDBACK_SQL = """
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_name   TEXT,
+    feedback_type TEXT,               -- 'like' 或 'hide'
+    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 
 def get_conn(db_path: "Path | str" = DB_PATH) -> sqlite3.Connection:
     """打开连接，返回 Row 工厂的连接。"""
@@ -49,6 +58,32 @@ def init_db(db_path: "Path | str" = DB_PATH) -> sqlite3.Connection:
     """建表（幂等）+ 补列（兼容阶段二的旧库），返回已就绪的连接。"""
     conn = get_conn(db_path)
     conn.execute(CREATE_ITEMS_SQL)
+    conn.execute(CREATE_FEEDBACK_SQL)
     _ensure_columns(conn)
     conn.commit()
     return conn
+
+
+def add_feedback(
+    source_name: str,
+    feedback_type: str,
+    conn: "sqlite3.Connection | None" = None,
+) -> None:
+    """记录一次来源反馈（feedback_type：'like' 或 'hide'）。
+
+    不传 conn 时自己开关连接并立即提交；传入 conn 时复用该连接，
+    由调用方统一 commit —— 避免同一进程内两个连接互相把库锁死。
+    """
+    own = conn is None
+    if own:
+        conn = get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO user_feedback (source_name, feedback_type) VALUES (?, ?)",
+            (source_name, feedback_type),
+        )
+        if own:
+            conn.commit()
+    finally:
+        if own:
+            conn.close()

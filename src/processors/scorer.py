@@ -35,3 +35,28 @@ def calc_final_score(item: dict, interest_weight: float, source_quality: float =
         score += 2.0
 
     return round(score, 4)
+
+
+def get_source_quality(source_name: str, conn) -> float:
+    """按用户反馈动态计算来源质量分。
+
+    基础分 1.0；每个 like +0.1；每个 hide -0.2；最终夹在 [0.2, 2.0]。
+    读的是 user_feedback 表（由 init_db 建好）。
+    """
+    if not source_name:
+        return 1.0
+
+    row = conn.execute(
+        """
+        SELECT
+            COALESCE(SUM(CASE WHEN feedback_type = 'like' THEN 1 ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN feedback_type = 'hide' THEN 1 ELSE 0 END), 0)
+        FROM user_feedback
+        WHERE source_name = ?
+        """,
+        (source_name,),
+    ).fetchone()
+
+    likes, hides = (row[0], row[1]) if row else (0, 0)
+    quality = 1.0 + 0.1 * likes - 0.2 * hides
+    return round(min(max(quality, 0.2), 2.0), 4)

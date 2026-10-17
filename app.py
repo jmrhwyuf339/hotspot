@@ -4,7 +4,7 @@ import html
 
 import streamlit as st
 
-from src.db import get_conn, init_db
+from src.db import add_feedback, get_conn, init_db
 
 st.set_page_config(page_title="我的个人热榜", layout="wide")
 st.title("🔥 我的个人热榜")
@@ -89,12 +89,14 @@ for row in rows:
     with cols[2]:
         if st.button("收藏", key=f"save_{row['id']}", use_container_width=True):
             conn.execute("UPDATE items SET is_saved = 1 WHERE id = ?", (row["id"],))
+            add_feedback(row["source_name"], "like", conn)
             conn.commit()
             st.rerun()
 
     with cols[3]:
         if st.button("隐藏", key=f"hide_{row['id']}", use_container_width=True):
             conn.execute("UPDATE items SET is_hidden = 1 WHERE id = ?", (row["id"],))
+            add_feedback(row["source_name"], "hide", conn)
             conn.commit()
             st.rerun()
 
