@@ -1,0 +1,4 @@
+# Streamlit 主题配置（只影响界面展示，与抓取/打分逻辑无关）
+[theme]
+primaryColor = "#6366f1"
+baseRadius = "large"
