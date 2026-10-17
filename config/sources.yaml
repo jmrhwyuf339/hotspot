@@ -33,3 +33,28 @@ sources:
     url: https://www.ruanyifeng.com/blog/atom.xml
     type: rss
     interest: AI工具与Agent生态
+
+  - name: OpenAI News
+    url: https://openai.com/news/rss.xml
+    type: rss
+    interest: AI工具与Agent生态
+
+  - name: Simon Willison's Weblog
+    url: https://simonwillison.net/atom/everything/
+    type: rss
+    interest: AI工具与Agent生态
+
+  - name: GitHub Blog
+    url: https://github.blog/feed/
+    type: rss
+    interest: AI工具与Agent生态
+
+  - name: ComfyUI Blog
+    url: https://blog.comfy.org/feed
+    type: rss
+    interest: ComfyUI与本地AI图像/视频生成
+
+  - name: 开源中国
+    url: https://www.oschina.net/news/rss
+    type: rss
+    interest: AI工具与Agent生态
