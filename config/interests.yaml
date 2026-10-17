@@ -1,7 +1,7 @@
 interests:
   - name: AI工具与Agent生态
     weight: 10
-    keywords: [Agent, Cline, Coze, Dify, MCP, SKILLS, Claude Code, WorkBuddy, AI, LLM, GPT, Open Source, GitHub, AIGC, 大模型, 人工智能, 智能体, HelloGitHub]
+    keywords: [Agent, Cline, Coze, Dify, MCP, SKILLS, Claude Code, WorkBuddy, AI, LLM, GPT, Open Source, GitHub, AIGC, 大模型, 人工智能, 智能体, HelloGitHub, 周刊, 科技爱好者周刊]
     exclude: [炒股, 招聘广告]
 
   - name: 免费/低成本AI资源
