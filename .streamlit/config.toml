@@ -1,4 +1,19 @@
-# Streamlit 主题配置（只影响界面展示，与抓取/打分逻辑无关）
+# Streamlit 主题：只为界面观感服务，与抓取 / 去重 / 打分逻辑无关。
+# 说明：这里固定为浅色（base = "light"），因为「灰底 + 白色悬浮卡片」的观感
+# 需要确定的底色；若想恢复跟随系统深浅色，删掉 base 与下面几个颜色键即可。
 [theme]
+base = "light"
 primaryColor = "#6366f1"
+backgroundColor = "#f6f7f9"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
+linkColor = "#4f46e5"
+borderColor = "#eceef3"
 baseRadius = "large"
+showSidebarBorder = false
+font = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif'
+headingFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", sans-serif'
+
+[client]
+# minimal：隐藏 Deploy 与开发者菜单，观感更像成品 App（仍保留右上角的 ⋮）
+toolbarMode = "minimal"
