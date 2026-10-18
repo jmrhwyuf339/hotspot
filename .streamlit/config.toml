@@ -17,3 +17,9 @@ headingFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
 [client]
 # minimal：隐藏 Deploy 与开发者菜单，观感更像成品 App（仍保留右上角的 ⋮）
 toolbarMode = "minimal"
+
+[server]
+# 保存 .py 后自动重跑：Streamlit 默认是 false（只在页面顶部弹一个 Rerun 提示），
+# 改成 true 后改完代码浏览器里就是新的，不用每次手动点。
+# 只影响开发时的刷新，与抓取 / 打分逻辑无关。
+runOnSave = true
