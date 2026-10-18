@@ -1,10 +1,22 @@
-"""排序打分：final_score = interest_weight × heat_score × time_decay × source_quality - read_penalty。"""
+"""排序打分：final_score = interest_weight × heat_score × time_decay × source_quality - read_penalty。
+
+trusted 源（sources.yaml 里 trusted: true 的深度源）额外乘 TRUSTED_BOOST：
+这些源更新慢、产出少，按同一套时间衰减会被压到保底分，靠这个系数让好文章多飘一会儿。
+"""
 
 import math
 from datetime import datetime, timezone
 
+# trusted 源加成：深度长文更新慢（周更甚至月更），不该和日更快讯同一条衰减曲线
+TRUSTED_BOOST = 1.5
 
-def calc_final_score(item: dict, interest_weight: float, source_quality: float = 1.0) -> float:
+
+def calc_final_score(
+    item: dict,
+    interest_weight: float,
+    source_quality: float = 1.0,
+    trusted: bool = False,
+) -> float:
     """
     item 需/可选字段：
       published_at  datetime（有则按发布时间衰减，无则按 24 小时计）
@@ -12,6 +24,8 @@ def calc_final_score(item: dict, interest_weight: float, source_quality: float =
       is_read / is_hidden / is_saved  bool（已读 -1.0 / 已隐藏 -5.0 / 已收藏 +2.0）
 
     time_decay = max(exp(-hours / 72), 0.1)：3 天衰减到 0.37；任何内容保底 0.1，不会归零。
+    trusted=True 时内容分先 × TRUSTED_BOOST，再加/减下面的已读隐藏收藏项
+    （惩罚保持绝对值，不随加成放大）。
     """
     published_at = item.get("published_at")
     if published_at:
@@ -26,6 +40,8 @@ def calc_final_score(item: dict, interest_weight: float, source_quality: float =
 
     heat_score = item.get("heat_score", 0.5)
     score = interest_weight * heat_score * time_decay * source_quality
+    if trusted:
+        score *= TRUSTED_BOOST
 
     if item.get("is_read"):
         score -= 1.0

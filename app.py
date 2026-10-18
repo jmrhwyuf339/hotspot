@@ -32,6 +32,9 @@ INTEREST_LABELS = {
     "AI工具与Agent生态": "AI工具",
     "免费/低成本AI资源": "免费资源",
     "ComfyUI与本地AI图像/视频生成": "图像生成",
+    "社会结构解剖": "社会结构",
+    "情感与权力博弈": "情感权力",
+    "认知与框架思维": "认知框架",
 }
 INTEREST_OPTIONS = list(INTEREST_LABELS)
 

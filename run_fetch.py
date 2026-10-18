@@ -69,10 +69,15 @@ def main() -> None:
     for source in sources:
         name = source.get("name") or source.get("url", "?")
         interest = get_interest(interests, source.get("interest"))
+        # trusted 源：信源即态度，免关键词放行（见 config/interests.yaml 抬头）
+        trusted = bool(source.get("trusted"))
 
         # 来源质量分：按 user_feedback 里的 like / hide 动态计算（阶段八）
         quality = get_source_quality(name, conn)
-        print(f"[fetch] {name} ({source.get('type')}) | 来源质量分 {quality}")
+        print(
+            f"[fetch] {name} ({source.get('type')}) | 来源质量分 {quality}"
+            f"{' | trusted 免关键词' if trusted else ''}"
+        )
 
         if interest is None:
             print(f"  [warn] 找不到兴趣「{source.get('interest')}」，跳过该源")
@@ -101,8 +106,8 @@ def main() -> None:
         added = filtered = stale = skipped = 0
 
         for item in items:
-            # 1) 兴趣过滤
-            if not match_interest(item, interest):
+            # 1) 兴趣过滤（trusted 源免关键词，只受 exclude 兜底）
+            if not match_interest(item, interest, trusted=trusted):
                 filtered += 1
                 continue
 
@@ -121,7 +126,7 @@ def main() -> None:
                 continue
 
             # 4) 打分 + 写入
-            final = calc_final_score(item, interest["weight"], quality)
+            final = calc_final_score(item, interest["weight"], quality, trusted=trusted)
             published_at = item.get("published_at")
             conn.execute(
                 """

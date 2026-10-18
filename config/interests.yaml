@@ -1,4 +1,28 @@
+# 兴趣 = 调性。
+#
+# 常规源（sources.yaml 里没标 trusted）仍然按 keywords 精准匹配，用来拦噪音。
+# trusted 源（sources.yaml 里 trusted: true）走「信源即态度」通路：条目不要求命中
+# keywords，依据是源本身的调性，只受 exclude 兜底。见 src/processors/filter.py。
+#
+# 三个「精神内核」大类的 weight 与技术线同级（10 / 9 / 9），两套并存。
 interests:
+  # —— 精神内核线 ——
+  - name: 社会结构解剖
+    weight: 10
+    keywords: [阶级, 阶层, 结构, 权力, 制度, 官僚, 治理, 分配, 资本, 劳动, 异化, 意识形态, 政治经济, 马克思, 福柯, 韦伯, 秩序, 历史]
+    exclude: [招聘, 招人, 抽奖, 优惠券, 带货, 课程报名, 直播预告, 活动报名, 广告]
+
+  - name: 情感与权力博弈
+    weight: 9
+    keywords: [亲密关系, 边界, 边界感, 情感, 婚姻, 两性, 性别, 权力, 控制, 依恋, 依赖, 自我, 原生家庭, 自恋, 关系]
+    exclude: [征婚, 相亲广告, 脱单课, 情感咨询广告, 优惠券, 抽奖]
+
+  - name: 认知与框架思维
+    weight: 9
+    keywords: [元认知, 认知, 思维, 框架, 心智, 决策, 复杂系统, 系统思维, 第一性原理, 学习, 复盘, 自省, 观察者, 因果]
+    exclude: [训练营, 招生, 大促, 优惠券, 抽奖]
+
+  # —— 技术线（原样保留，权重不变）——
   - name: AI工具与Agent生态
     weight: 10
     keywords: [Agent, Cline, Coze, Dify, MCP, SKILLS, Claude Code, WorkBuddy, AI, LLM, GPT, Open Source, GitHub, AIGC, 大模型, 人工智能, 智能体, HelloGitHub, 周刊, 科技爱好者周刊]

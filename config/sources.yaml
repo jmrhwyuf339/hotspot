@@ -58,3 +58,61 @@ sources:
     url: https://www.oschina.net/news/rss
     type: rss
     interest: 免费/低成本AI资源
+
+  # ============================================================
+  # 精神内核线：文字源（微信公众号全文 / 学术文章 / 独立博客 / 澎湃栏目）
+  #
+  # trusted: true = 「信源即态度」：条目不要求命中 keywords，只受 exclude 兜底。
+  # 每个 url 都在 2026-10-18 用真实请求验证过：能取到条目、且更新是活的。
+  # 只收文字源 —— 播客（忽左忽右、随机波动等）调性很准但只有音频，未纳入。
+  # ============================================================
+
+  - name: 澎湃思想市场
+    url: https://rsshub.ktachibana.party/thepaper/list/25483
+    type: rss
+    interest: 社会结构解剖
+    trusted: true
+
+  - name: 爱思想
+    url: https://www.aisixiang.com/rss?type=1
+    type: rss
+    interest: 社会结构解剖
+    trusted: true
+
+  - name: 逻辑与现实经济
+    url: https://wechat2rss.xlab.app/feed/07cd3971227a35b5c35cd94d1961790dad9a87c7.xml
+    type: rss
+    interest: 社会结构解剖
+    trusted: true
+
+  - name: 槽边往事
+    url: https://www.hecaitou.com/rss.xml
+    type: rss
+    interest: 情感与权力博弈
+    trusted: true
+
+  - name: 思想钢印
+    url: https://wechat2rss.xlab.app/feed/a55006fab25a17c43a412246fda317822609f2ea.xml
+    type: rss
+    interest: 认知与框架思维
+    trusted: true
+
+  # ------------------------------------------------------------
+  # 知乎路由暂不启用：知乎对未登录请求直接返回「安全验证」，本地实测
+  #   · rsshub.rssforever.com /zhihu/topic/...、/zhihu/question/... → 503
+  #   · rsshub.ktachibana.party 同上 → 503（RSSHub 的知乎路由需配 ZHIHU_COOKIE）
+  #   · rss.lilydjwg.me/zhihu/<id>（转知乎动态）→ 503（知乎限频）
+  # 等你有一个配好知乎 cookie 的 RSSHub 实例，把下面两条 url 换成该实例地址即可：
+  #
+  # - name: 知乎话题·社会观察
+  #   url: https://<你的RSSHub>/zhihu/topic/<话题id>
+  #   type: rss
+  #   interest: 社会结构解剖
+  #   trusted: true
+  #
+  # - name: 知乎话题·亲密关系
+  #   url: https://<你的RSSHub>/zhihu/topic/<话题id>
+  #   type: rss
+  #   interest: 情感与权力博弈
+  #   trusted: true
+  # ------------------------------------------------------------
