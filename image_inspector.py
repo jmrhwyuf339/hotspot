@@ -8,7 +8,9 @@
 
 运行：在项目根目录执行  streamlit run image_inspector.py
 """
+import base64
 import json
+import math
 import os
 import platform
 import shutil
@@ -310,7 +312,7 @@ def render_image(file_bytes: bytes, name: str) -> None:
         st.caption("所有数据均由你本地文件夹中的 ExifTool 处理，运行结束后临时文件会被删除。")
     json_str = json.dumps(meta, ensure_ascii=False, indent=2)
     st.download_button("⬇ 下载 JSON 元数据", json_str, file_name=f"{Path(name).stem}_metadata.json",
-                       mime="application/json", use_container_width=True)
+                       mime="application/json", width="stretch")
 
 
 def render_metadata(groups: dict[str, list[tuple[str, object]]]) -> None:
@@ -425,8 +427,67 @@ def extract_gps(meta: dict) -> dict | None:
     return {"lat": lat, "lon": lon, "alt": alt, "acc": number("GPSHPositioningError"), "stamp": stamp}
 
 
+# ---------- 地图底图 ----------
+# pydeck 自带的 "light" 等样式会去 CARTO 的国外 CDN 取底图样式与瓦片，国内网络下经常整块白屏。
+# 这里把样式整个内联成 data: URL（不请求任何国外资源），并在样式里直接挂高德的 raster 瓦片
+# （国内直连、免 key）。注意：不要改用 deck.gl 的 TileLayer —— Streamlit 目前不会渲染它的瓦片。
+AMAP_TILE_URL = ("https://webrd01.is.autonavi.com/appmaptile"
+                 "?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}")
+BASEMAP_STYLE = "data:application/json;base64," + base64.b64encode(json.dumps({
+    "version": 8,
+    "name": "amap",
+    "sources": {
+        "amap": {"type": "raster", "tiles": [AMAP_TILE_URL], "tileSize": 256,
+                 "minzoom": 3, "maxzoom": 18, "attribution": "© 高德地图"},
+    },
+    "layers": [
+        {"id": "background", "type": "background",  # 瓦片没加载出来时的兜底底色
+         "paint": {"background-color": "#eef1f5"}},
+        {"id": "amap", "type": "raster", "source": "amap", "minzoom": 3, "maxzoom": 18},
+    ],
+}).encode("utf-8")).decode("ascii")
+
+# WGS-84（照片里的 GPS）→ GCJ-02（高德等国内地图使用的「火星坐标」）需要用到椭球参数
+_KRASOVSKY_A = 6378245.0                # 克拉索夫斯基椭球长半轴
+_KRASOVSKY_EE = 0.00669342162296594323  # 该椭球第一偏心率的平方
+
+
+def _gcj02_offset(lat: float, lon: float) -> tuple[float, float]:
+    """返回 (纬度偏移, 经度偏移)，单位是度；入参是加偏前的 WGS-84 坐标。"""
+    sh_lon, sh_lat = lon - 105.0, lat - 35.0  # 公式以 (105°E, 35°N) 为参考点
+
+    d_lat = (-100.0 + 2.0 * sh_lon + 3.0 * sh_lat + 0.2 * sh_lat * sh_lat
+             + 0.1 * sh_lon * sh_lat + 0.2 * math.sqrt(abs(sh_lon)))
+    d_lat += (20.0 * math.sin(6.0 * sh_lon * math.pi) + 20.0 * math.sin(2.0 * sh_lon * math.pi)) * 2.0 / 3.0
+    d_lat += (20.0 * math.sin(sh_lat * math.pi) + 40.0 * math.sin(sh_lat / 3.0 * math.pi)) * 2.0 / 3.0
+    d_lat += (160.0 * math.sin(sh_lat / 12.0 * math.pi) + 320.0 * math.sin(sh_lat * math.pi / 30.0)) * 2.0 / 3.0
+
+    d_lon = (300.0 + sh_lon + 2.0 * sh_lat + 0.1 * sh_lon * sh_lon
+             + 0.1 * sh_lon * sh_lat + 0.1 * math.sqrt(abs(sh_lon)))
+    d_lon += (20.0 * math.sin(6.0 * sh_lon * math.pi) + 20.0 * math.sin(2.0 * sh_lon * math.pi)) * 2.0 / 3.0
+    d_lon += (20.0 * math.sin(sh_lon * math.pi) + 40.0 * math.sin(sh_lon / 3.0 * math.pi)) * 2.0 / 3.0
+    d_lon += (150.0 * math.sin(sh_lon / 12.0 * math.pi) + 300.0 * math.sin(sh_lon / 30.0 * math.pi)) * 2.0 / 3.0
+
+    rad_lat = lat / 180.0 * math.pi  # 椭球换算用的是加偏前的纬度
+    magic = 1 - _KRASOVSKY_EE * math.sin(rad_lat) ** 2
+    sqrt_magic = math.sqrt(magic)
+    return ((d_lat * 180.0) / (_KRASOVSKY_A * (1 - _KRASOVSKY_EE) / (magic * sqrt_magic) * math.pi),
+            (d_lon * 180.0) / (_KRASOVSKY_A / sqrt_magic * math.cos(rad_lat) * math.pi))
+
+
+def wgs84_to_gcj02(lat: float, lon: float) -> tuple[float, float]:
+    """照片里的 WGS-84 坐标 → 高德底图使用的 GCJ-02 坐标；境外坐标不做偏移。
+
+    国内偏移量一般在 100~700 米，不转换直接打点会明显错位。
+    """
+    if not (73.66 < lon < 135.05 and 3.86 < lat < 53.55):  # 粗略判断是否在中国境内
+        return lat, lon
+    d_lat, d_lon = _gcj02_offset(lat, lon)
+    return lat + d_lat, lon + d_lon
+
+
 def render_map(gps: dict) -> None:
-    """页面下方的交互式地图：打点 + 精度圈 + 悬停详情 + 外部地图链接。"""
+    """页面下方的交互式地图：高德底图 + 打点 + 精度圈 + 悬停详情 + 外部地图链接。"""
     lat, lon, acc = gps["lat"], gps["lon"], gps["acc"]
     details = [f"纬度 {lat:.6f}", f"经度 {lon:.6f}"]
     if gps["alt"] is not None:
@@ -436,23 +497,31 @@ def render_map(gps: dict) -> None:
     if gps["stamp"]:
         details.append(f"GPS 时间 {gps['stamp']}")
 
-    layers = [pdk.Layer("ScatterplotLayer", data=[gps], get_position=["lon", "lat"],
-                        get_fill_color=[230, 57, 70, 200], get_radius=12,
-                        radius_min_pixels=8, radius_max_pixels=28, pickable=True)]
+    # 底图是高德的 GCJ-02 坐标，打点前先纠偏，否则指针会偏移几百米
+    map_lat, map_lon = wgs84_to_gcj02(lat, lon)
+    marker = {"lat": map_lat, "lon": map_lon}
+
+    layers = [
+        pdk.Layer("ScatterplotLayer", data=[marker], get_position=["lon", "lat"],
+                  get_fill_color=[230, 57, 70, 200], get_radius=12,
+                  radius_min_pixels=8, radius_max_pixels=28, pickable=True),
+    ]
     if acc:  # 精度圈：半径 = GPSHPositioningError（米）
-        layers.append(pdk.Layer("ScatterplotLayer", data=[gps], get_position=["lon", "lat"],
+        layers.append(pdk.Layer("ScatterplotLayer", data=[marker], get_position=["lon", "lat"],
                                 get_fill_color=[230, 57, 70, 40], get_radius=acc, pickable=False))
     st.pydeck_chart(pdk.Deck(
         layers=layers,
-        initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=13 if (acc or 0) >= 100 else 16),
-        map_style="light",
+        initial_view_state=pdk.ViewState(latitude=map_lat, longitude=map_lon,
+                                         zoom=13 if (acc or 0) >= 100 else 16),
+        map_style=BASEMAP_STYLE,
         tooltip={"html": "<br/>".join(details), "style": {"backgroundColor": "#222", "color": "#fff"}},
-    ))
+    ), alt=f"拍摄位置地图：{lat:.6f}, {lon:.6f}")
     st.caption(" · ".join(details))
     c1, c2, _ = st.columns([1, 1, 4])
     c1.link_button("🌍 OpenStreetMap", f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}")
-    c2.link_button("🧭 高德地图", f"https://uri.amap.com/marker?position={lon},{lat}")
-    st.caption("提示：高德等国内地图使用 GCJ-02 坐标系，与照片中的 WGS-84 坐标存在少量偏移。")
+    c2.link_button("🧭 高德地图", f"https://uri.amap.com/marker?position={map_lon},{map_lat}")
+    st.caption("底图为高德地图（国内直连）。瓦片使用 GCJ-02 坐标系，打点与高德链接已自动纠偏；"
+               "上面的经纬度仍是照片原始的 WGS-84 坐标。")
 
 
 # ---------- 主入口 ----------
