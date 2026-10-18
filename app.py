@@ -1,11 +1,17 @@
-"""个人热榜 —— 展示层（卡片式资讯 App 风格 · shadcn 组件）。
+"""个人热榜 —— 展示层（卡片式资讯 App 风格 · 混合渲染）。
 
 本文件只负责渲染。抓取 / 去重 / 翻译 / 打分 / 反馈写库等后端逻辑一字未动：
 - 查询、筛选条件、排序、LIMIT 与阶段八完全一致
 - 三个按钮仍然调用 add_feedback(...) 并复用同一个 conn + commit + st.rerun
-- 卡片 / 按钮 / 徽章改由 streamlit-shadcn-ui 渲染（Components V2，无 iframe）：
-  点击通过 handle.clicked 回到 Python，写库语句与之前逐字相同
+- 渲染分工：
+  · 标题 / 来源时间 —— 自家 HTML。标题必须是原生 <a>：shadcn 的 link_button
+    强制 white-space:nowrap，长中文标题在窄屏会被裁掉，只有原生 <a> 才能又
+    可点又换行；卡片外壳也因此用自家 CSS（对齐 shadcn Card 的中性观感）。
+  · 徽章 / 按钮 —— streamlit-shadcn-ui 的 elements（Components V2，无 iframe）
+  · 点击通过 handle.clicked 回到 Python，写库语句与之前逐字相同
 """
+
+import html
 
 import streamlit as st
 import streamlit_shadcn_ui as ui
@@ -29,9 +35,6 @@ SCORE_MID = 2.0
 
 # run_fetch.py 翻译后给标题加的英文前缀，展示时摘出来做成「译」标签
 TRANS_PREFIX = "[译] "
-
-# 一棵 elements 树最多 1000 个节点；每张卡约 17 个节点，40 张一批最稳
-FEED_BATCH = 40
 
 CSS = """
 <style>
@@ -72,6 +75,37 @@ section[data-testid="stSidebar"] .block-container { padding-top: 1rem !important
     margin: 1.15rem 0 .4rem 0; font-size: .7rem; font-weight: 700;
     letter-spacing: .1em; text-transform: uppercase; color: #b3bac9;
 }
+
+/* ---------- 4. 资讯卡片 ----------
+   外壳用自家 CSS（对齐 shadcn Card 的中性观感），标题是原生 <a>：
+   只有这样才能做到「标题可点 + 可换行」，同时把行高攥在自己手里。
+   卡片里的徽章 / 按钮仍然是真 shadcn 组件（见 render_card）。 */
+div[class*="st-key-item_"] {
+    background: #ffffff;
+    border: 1px solid #e4e4e7;
+    border-radius: 10px;
+    padding: .55rem .8rem .5rem .8rem;
+    margin-bottom: .5rem !important;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+div[class*="st-key-item_"]:hover {
+    border-color: #d4d4d8;
+    box-shadow: 0 4px 12px -4px rgba(16, 24, 40, .12);
+}
+/* 卡内三块（标题 / 元信息 / 控件行）贴紧，别用 Streamlit 默认大间距 */
+div[class*="st-key-item_"] > div > [data-testid="stVerticalBlock"] { gap: .22rem !important; }
+div[class*="st-key-item_"] [data-testid="stElementContainer"] { margin-bottom: 0 !important; }
+div[class*="st-key-item_"] [data-testid="stMarkdownContainer"] p { margin: 0 !important; }
+
+/* 标题：原生链接，可换行、可点击跳原网页 */
+.ph-title {
+    font-size: 1.02rem; font-weight: 650; line-height: 1.4;
+    letter-spacing: -.012em; color: #0f172a !important;
+    text-decoration: none !important;
+}
+.ph-title:hover { text-decoration: underline !important; text-underline-offset: 3px; }
+.ph-meta { font-size: .8rem; line-height: 1.35; color: #71717a; }
 </style>
 """
 
@@ -173,9 +207,13 @@ if not rows:
     st.stop()
 
 
-# ---------------- 卡片列表（shadcn Card）----------------
-def render_card(el, row, handles: list) -> None:
-    """把一条资讯画成一张 shadcn 卡片，并把三个按钮的 handle 收集起来。"""
+# ---------------- 卡片列表 ----------------
+def render_card(row, handles: list) -> None:
+    """画一条资讯，并把三个操作按钮的 handle 收集起来。
+
+    标题与来源时间用自家 HTML（标题必须可点可换行），
+    徽章与三个按钮用 shadcn 组件（一行内：徽章靠左、按钮靠右）。
+    """
     item_id = row["id"]
 
     title = row["title"] or "(无标题)"
@@ -188,47 +226,44 @@ def render_card(el, row, handles: list) -> None:
 
     score = row["final_score"] if row["final_score"] is not None else 0.0
 
-    with el.card(key="card%d" % item_id, size="sm"):
-        with el.card_header():
-            with el.stack(
-                direction="horizontal", gap="md", align="start", justify="between"
-            ):
-                el.heading(title, key="title%d" % item_id, level=3)
-                el.badge(
-                    "%.2f" % score,
-                    key="score%d" % item_id,
-                    variant=score_variant(score),
-                )
+    with st.container(key="item_%d" % item_id):
+        st.markdown(
+            '<a class="ph-title" href="%s" target="_blank" rel="noopener">%s</a>'
+            % (html.escape(row["url"] or "", quote=True), html.escape(title)),
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            '<div class="ph-meta">%s · %s</div>'
+            % (html.escape(row["source_name"] or "未知来源"), html.escape(published)),
+            unsafe_allow_html=True,
+        )
 
-        with el.card_content():
+        # with 块退出时组件才真正挂载，handle.clicked 也是那时才被写入
+        with ui.elements(key="ctrl_%d" % item_id) as el:
             with el.stack(
-                direction="horizontal", gap="xs", align="center", wrap=True
+                direction="horizontal", gap="xs", align="center", justify="between"
             ):
-                el.text(
-                    "%s · %s" % (row["source_name"] or "未知来源", published),
-                    key="meta%d" % item_id,
-                    variant="muted",
-                )
-                el.badge(
-                    row["interest"] or "未分类",
-                    key="interest%d" % item_id,
-                    variant="outline",
-                )
-                if translated:
-                    el.badge("译", key="trans%d" % item_id, variant="secondary")
+                # 左：分数 / 兴趣 / 「译」
+                with el.stack(
+                    direction="horizontal", gap="xs", align="center", wrap=True
+                ):
+                    el.badge(
+                        "%.2f" % score,
+                        key="score%d" % item_id,
+                        variant=score_variant(score),
+                    )
+                    el.badge(
+                        row["interest"] or "未分类",
+                        key="interest%d" % item_id,
+                        variant="outline",
+                    )
+                    if translated:
+                        el.badge("译", key="trans%d" % item_id, variant="secondary")
 
-        with el.card_footer():
-            with el.stack(
-                direction="horizontal", gap="sm", align="center", justify="between"
-            ):
-                el.link_button(
-                    "打开原文",
-                    row["url"],
-                    key="link%d" % item_id,
-                    variant="link",
-                    size="sm",
-                )
-                with el.stack(direction="horizontal", gap="xs", justify="end"):
+                # 右：三个操作按钮（收藏用 secondary，避免整屏黑按钮）
+                with el.stack(
+                    direction="horizontal", gap="xs", align="center", justify="end"
+                ):
                     handles.append(
                         (
                             "read",
@@ -251,7 +286,7 @@ def render_card(el, row, handles: list) -> None:
                             el.button(
                                 "已收藏" if row["is_saved"] else "收藏",
                                 key="save%d" % item_id,
-                                variant="default",
+                                variant="secondary",
                                 size="sm",
                                 help="收藏，并给这个来源点个赞（影响来源质量分）",
                             ),
@@ -274,12 +309,8 @@ def render_card(el, row, handles: list) -> None:
 
 
 handles: list = []
-for start in range(0, len(rows), FEED_BATCH):
-    # with 块退出时组件才真正挂载，handle.clicked 也是那时才被写入
-    with ui.elements(key="feed_%d" % start) as el:
-        with el.stack(direction="vertical", gap="md"):
-            for row in rows[start:start + FEED_BATCH]:
-                render_card(el, row, handles)
+for row in rows:
+    render_card(row, handles)
 
 # ---------------- 处理点击（写库语句与之前逐字相同）----------------
 for action, item_id, source_name, handle in handles:
