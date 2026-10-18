@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "setupDate": "2026-10-18",
+  "languages": [
+    "python"
+  ],
+  "framework": null,
+  "packageManager": "pip",
+  "agents": [
+    "backend-developer",
+    "python-pro",
+    "django-developer",
+    "fastapi-developer",
+    "devops-engineer",
+    "code-reviewer",
+    "ai-engineer",
+    "data-engineer",
+    "data-scientist",
+    "machine-learning-engineer",
+    "prompt-engineer",
+    "dependency-manager",
+    "git-workflow-manager",
+    "test-writer"
+  ],
+  "skills": [],
+  "modelStrategy": null,
+  "mcp": []
+}
