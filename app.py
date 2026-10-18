@@ -1,14 +1,14 @@
-"""个人热榜 —— 展示层（卡片式资讯 App 风格）。
+"""个人热榜 —— 展示层（卡片式资讯 App 风格 · shadcn 组件）。
 
 本文件只负责渲染。抓取 / 去重 / 翻译 / 打分 / 反馈写库等后端逻辑一字未动：
 - 查询、筛选条件、排序、LIMIT 与阶段八完全一致
 - 三个按钮仍然调用 add_feedback(...) 并复用同一个 conn + commit + st.rerun
+- 卡片 / 按钮 / 徽章改由 streamlit-shadcn-ui 渲染（Components V2，无 iframe）：
+  点击通过 handle.clicked 回到 Python，写库语句与之前逐字相同
 """
 
-import html
-
 import streamlit as st
-from streamlit_extras.metric_cards import style_metric_cards
+import streamlit_shadcn_ui as ui
 
 from src.db import add_feedback, get_conn, init_db
 
@@ -21,14 +21,17 @@ INTEREST_OPTIONS = [
     "ComfyUI与本地AI图像/视频生成",
 ]
 
-# 分数胶囊阈值：按本库真实分布标定（中位数 ~2.1、最高 ~7.8）
+# 分数档位：按本库真实分布标定（中位数 ~2.1、最高 ~7.8）
+# shadcn 的 Badge 只有 variant、没有自定义色，所以档位用 variant 表达：
+# 深色实心 = 高分 / 浅灰 = 中分 / 描边 = 低分
 SCORE_HIGH = 4.0
 SCORE_MID = 2.0
 
 # run_fetch.py 翻译后给标题加的英文前缀，展示时摘出来做成「译」标签
 TRANS_PREFIX = "[译] "
 
-BRAND = "#6366f1"
+# 一棵 elements 树最多 1000 个节点；每张卡约 17 个节点，40 张一批最稳
+FEED_BATCH = 40
 
 CSS = """
 <style>
@@ -50,103 +53,17 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 
 /* ---------- 2. 主区 Hero ---------- */
-.ph-hero { display: flex; align-items: center; gap: .85rem; margin: .1rem 0 1.2rem 0; }
+.ph-hero { display: flex; align-items: center; gap: .85rem; margin: .1rem 0 .9rem 0; }
 .ph-hero h1 {
     margin: 0; font-size: 1.65rem; font-weight: 800;
     letter-spacing: -.025em; color: #0f172a;
 }
 .ph-sub { margin-top: .2rem; font-size: .82rem; color: #8b93a7; }
 
-/* ---------- 3. 资讯卡片 ---------- */
-div[class*="st-key-item_"] {
-    background: #ffffff;
-    border: 1px solid #eceef3;
-    border-radius: 16px;
-    padding: 15px 18px;
-    margin-bottom: 12px;
-    box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 6px 18px -10px rgba(16, 24, 40, .10);
-    transition: all .3s ease;
-}
-div[class*="st-key-item_"]:hover {
-    transform: translateY(-3px);
-    border-color: #dcd8ff;
-    box-shadow: 0 12px 30px -10px rgba(79, 70, 229, .28), 0 2px 6px rgba(16, 24, 40, .05);
-}
-/* 卡片内部紧凑化：压掉 Streamlit 元素之间的默认间距 */
-div[class*="st-key-item_"] [data-testid="stVerticalBlock"],
-div[class*="st-key-item_"] [data-testid="stHorizontalBlock"] { gap: .3rem !important; }
-div[class*="st-key-item_"] .element-container { margin: 0 !important; }
-div[class*="st-key-item_"] [data-testid="stMarkdownContainer"] { width: 100%; }
-div[class*="st-key-item_"] [data-testid="stMarkdownContainer"] p { margin: 0 !important; }
-
-/* ---------- 4. 标题与元数据 ---------- */
-.ph-title {
-    font-size: 1.05rem; font-weight: 700; line-height: 1.45;
-    letter-spacing: -.01em; color: #0f172a;
-}
-.ph-title a { color: inherit; text-decoration: none; transition: color .3s ease; }
-div[class*="st-key-item_"]:hover .ph-title a { color: #4f46e5; }
-.ph-meta {
-    display: flex; align-items: center; flex-wrap: wrap; gap: .42rem;
-    margin-top: .5rem; font-size: .74rem; color: #98a1b3;
-}
-.ph-src { font-weight: 600; color: #5b6478; }
-.ph-interest {
-    padding: .05rem .42rem; border: 1px solid #e5e7eb;
-    border-radius: 6px; font-size: .7rem; color: #6b7280;
-}
-.ph-trans {
-    padding: .05rem .38rem; border: 1px solid #ddd6fe;
-    border-radius: 6px; font-size: .68rem; color: #7c3aed;
-}
-
-/* ---------- 5. 分数胶囊 ---------- */
-.ph-score {
-    padding: .1rem .48rem; border-radius: 999px;
-    font-size: .72rem; font-weight: 700; color: #fff; letter-spacing: .02em;
-}
-.ph-score.high { background: #0f766e; }
-.ph-score.mid  { background: #ea580c; }
-.ph-score.low  { background: #94a3b8; }
-
-/* ---------- 6. 幽灵按钮 ----------
-   注意：按钮外面套了 help= 的 tooltip <span>，所以必须用后代选择器（不能用 > button） */
-div[class*="st-key-item_"] button {
-    height: 34px !important; min-height: 34px !important;
-    padding: 0 .5rem !important;
-    border: 0 !important; box-shadow: none !important; background: transparent !important;
-    color: #98a1b3 !important; font-size: .78rem !important;
-    border-radius: 10px !important;
-    transition: all .25s ease !important;
-}
-div[class*="st-key-item_"] button p {
-    font-size: .78rem !important; font-weight: 500 !important; color: inherit !important;
-}
-div[class*="st-key-item_"] button:hover {
-    background: #eef2ff !important; color: #4f46e5 !important;
-}
-div[class*="st-key-item_"] button:focus:not(:active) {
-    border: 0 !important; color: #4f46e5 !important;
-}
-
-/* ---------- 6b. 窄屏：卡片内边距收一点（列的重排交给 Streamlit 原生的堆叠行为） ---------- */
-@media (max-width: 640px) {
-    div[class*="st-key-item_"] { padding: 14px 14px !important; }
-}
-
-/* ---------- 7. 侧边栏 ---------- */
+/* ---------- 3. 侧边栏 ---------- */
 section[data-testid="stSidebar"] { background: #ffffff; border-right: 1px solid #eceef3; }
 section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] { padding-top: 1rem; }
 section[data-testid="stSidebar"] .block-container { padding-top: 1rem !important; }
-/* 侧栏里的指标卡要更紧凑，否则 106 这种数字会被挤成省略号 */
-section[data-testid="stSidebar"] [data-testid="stMetric"] { padding: .5rem .55rem !important; }
-section[data-testid="stSidebar"] [data-testid="stMetricValue"] {
-    font-size: 1.15rem !important; line-height: 1.3 !important;
-}
-section[data-testid="stSidebar"] [data-testid="stMetricValue"] > div { font-size: 1.15rem !important; }
-section[data-testid="stSidebar"] [data-testid="stMetricLabel"] p {
-    font-size: .68rem !important; letter-spacing: .01em;
-}
 .ph-brand { display: flex; align-items: center; gap: .6rem; margin-bottom: .2rem; }
 .ph-brand .ph-logo { width: 38px; height: 38px; border-radius: 12px; font-size: 1.05rem; }
 .ph-brand-name { font-size: .98rem; font-weight: 800; letter-spacing: -.01em; color: #0f172a; }
@@ -161,20 +78,13 @@ section[data-testid="stSidebar"] [data-testid="stMetricLabel"] p {
 st.markdown(CSS, unsafe_allow_html=True)
 
 
-def esc(value) -> str:
-    """HTML 转义，避免标题/来源里的 & < > 破坏结构。"""
-    return html.escape("" if value is None else str(value))
-
-
-def score_pill(score: float) -> str:
-    """分数胶囊：>=SCORE_HIGH 深绿 / >=SCORE_MID 橙 / 其余灰蓝。"""
+def score_variant(score: float) -> str:
+    """分数徽章档位：高分深色实心 / 中分浅灰 / 低分描边。"""
     if score >= SCORE_HIGH:
-        tier = "high"
-    elif score >= SCORE_MID:
-        tier = "mid"
-    else:
-        tier = "low"
-    return f'<span class="ph-score {tier}" title="热度分 {score:.2f}">{score:.2f}</span>'
+        return "default"
+    if score >= SCORE_MID:
+        return "secondary"
+    return "outline"
 
 
 # 确保 items 表存在：空库 / 首次运行时也能正常显示「暂无数据」提示
@@ -199,21 +109,27 @@ with st.sidebar:
 
     st.markdown('<div class="ph-section">数据概况</div>', unsafe_allow_html=True)
     m1, m2, m3 = st.columns(3)
-    m1.metric("总条数", total)
-    m2.metric("已收藏", saved_n)
-    m3.metric("已隐藏", hidden_n)
-    style_metric_cards(
-        background_color="#ffffff",
-        border_color="#eceef3",
-        border_left_color=BRAND,
-        border_radius_px=12,
-    )
+    with m1:
+        ui.metric_card("总数", total, key="stat_total", size="sm")
+    with m2:
+        ui.metric_card("收藏", saved_n, key="stat_saved", size="sm")
+    with m3:
+        ui.metric_card("隐藏", hidden_n, key="stat_hidden", size="sm")
 
     st.markdown('<div class="ph-section">筛选</div>', unsafe_allow_html=True)
-    hide_read = st.toggle("隐藏已读", value=True)
-    hide_hidden = st.toggle("隐藏已隐藏", value=True)
-    interest = st.selectbox("筛选兴趣", INTEREST_OPTIONS, index=0)
-    limit = st.number_input("显示条数", min_value=10, max_value=200, value=30, step=10)
+    hide_read = ui.switch("隐藏已读", value=True, key="filter_hide_read")
+    hide_hidden = ui.switch("隐藏已隐藏", value=True, key="filter_hide_hidden")
+    interest = ui.select(
+        "筛选兴趣", INTEREST_OPTIONS, index=0, key="filter_interest"
+    )
+    limit = ui.number_input(
+        "显示条数",
+        30,
+        min_value=10,
+        max_value=200,
+        step=10,
+        key="filter_limit",
+    )
 
     if updated:
         st.caption(f"数据更新于 {str(updated)[:19].replace('T', ' ')}")
@@ -256,9 +172,11 @@ if not rows:
     conn.close()
     st.stop()
 
-# ---------------- 卡片列表 ----------------
-for row in rows:
-    score = row["final_score"] if row["final_score"] is not None else 0.0
+
+# ---------------- 卡片列表（shadcn Card）----------------
+def render_card(el, row, handles: list) -> None:
+    """把一条资讯画成一张 shadcn 卡片，并把三个按钮的 handle 收集起来。"""
+    item_id = row["id"]
 
     title = row["title"] or "(无标题)"
     translated = title.startswith(TRANS_PREFIX)
@@ -268,66 +186,117 @@ for row in rows:
     published = row["published_at"]
     published = published[:19].replace("T", " ") if published else "未知时间"
 
-    with st.container(key=f"item_{row['id']}"):
-        # 左边内容 / 右边三个幽灵按钮（按钮保持原生，回调才不会失效）
-        main_col, c1, c2, c3 = st.columns(
-            [1, 0.13, 0.13, 0.13], gap="small", vertical_alignment="center"
-        )
+    score = row["final_score"] if row["final_score"] is not None else 0.0
 
-        with main_col:
-            meta = [
-                score_pill(score),
-                f'<span class="ph-src">{esc(row["source_name"] or "未知来源")}</span>',
-                f'<span class="ph-interest">{esc(row["interest"] or "未分类")}</span>',
-            ]
-            if translated:
-                meta.append('<span class="ph-trans">译</span>')
-            meta.append(f"<span>{esc(published)}</span>")
-
-            st.markdown(
-                f'<div class="ph-title"><a href="{esc(row["url"])}" target="_blank" '
-                f'rel="noopener">{esc(title)}</a></div>'
-                f'<div class="ph-meta">{"".join(meta)}</div>',
-                unsafe_allow_html=True,
-            )
-
-        with c1:
-            if st.button(
-                "已读",
-                key=f"read_{row['id']}",
-                icon=":material/check_circle:",
-                help="标记为已读",
-                use_container_width=True,
+    with el.card(key="card%d" % item_id, size="sm"):
+        with el.card_header():
+            with el.stack(
+                direction="horizontal", gap="md", align="start", justify="between"
             ):
-                conn.execute("UPDATE items SET is_read = 1 WHERE id = ?", (row["id"],))
-                conn.commit()
-                st.rerun()
+                el.heading(title, key="title%d" % item_id, level=3)
+                el.badge(
+                    "%.2f" % score,
+                    key="score%d" % item_id,
+                    variant=score_variant(score),
+                )
 
-        with c2:
-            is_saved = bool(row["is_saved"])
-            if st.button(
-                "已收藏" if is_saved else "收藏",
-                key=f"save_{row['id']}",
-                icon=":material/star:",
-                help="收藏，并给这个来源点个赞（影响来源质量分）",
-                use_container_width=True,
+        with el.card_content():
+            with el.stack(
+                direction="horizontal", gap="xs", align="center", wrap=True
             ):
-                conn.execute("UPDATE items SET is_saved = 1 WHERE id = ?", (row["id"],))
-                add_feedback(row["source_name"], "like", conn)
-                conn.commit()
-                st.rerun()
+                el.text(
+                    "%s · %s" % (row["source_name"] or "未知来源", published),
+                    key="meta%d" % item_id,
+                    variant="muted",
+                )
+                el.badge(
+                    row["interest"] or "未分类",
+                    key="interest%d" % item_id,
+                    variant="outline",
+                )
+                if translated:
+                    el.badge("译", key="trans%d" % item_id, variant="secondary")
 
-        with c3:
-            if st.button(
-                "隐藏",
-                key=f"hide_{row['id']}",
-                icon=":material/visibility_off:",
-                help="隐藏这条，并降低该来源的权重",
-                use_container_width=True,
+        with el.card_footer():
+            with el.stack(
+                direction="horizontal", gap="sm", align="center", justify="between"
             ):
-                conn.execute("UPDATE items SET is_hidden = 1 WHERE id = ?", (row["id"],))
-                add_feedback(row["source_name"], "hide", conn)
-                conn.commit()
-                st.rerun()
+                el.link_button(
+                    "打开原文",
+                    row["url"],
+                    key="link%d" % item_id,
+                    variant="link",
+                    size="sm",
+                )
+                with el.stack(direction="horizontal", gap="xs", justify="end"):
+                    handles.append(
+                        (
+                            "read",
+                            item_id,
+                            row["source_name"],
+                            el.button(
+                                "已读",
+                                key="read%d" % item_id,
+                                variant="ghost",
+                                size="sm",
+                                help="标记为已读",
+                            ),
+                        )
+                    )
+                    handles.append(
+                        (
+                            "save",
+                            item_id,
+                            row["source_name"],
+                            el.button(
+                                "已收藏" if row["is_saved"] else "收藏",
+                                key="save%d" % item_id,
+                                variant="default",
+                                size="sm",
+                                help="收藏，并给这个来源点个赞（影响来源质量分）",
+                            ),
+                        )
+                    )
+                    handles.append(
+                        (
+                            "hide",
+                            item_id,
+                            row["source_name"],
+                            el.button(
+                                "隐藏",
+                                key="hide%d" % item_id,
+                                variant="ghost",
+                                size="sm",
+                                help="隐藏这条，并降低该来源的权重",
+                            ),
+                        )
+                    )
+
+
+handles: list = []
+for start in range(0, len(rows), FEED_BATCH):
+    # with 块退出时组件才真正挂载，handle.clicked 也是那时才被写入
+    with ui.elements(key="feed_%d" % start) as el:
+        with el.stack(direction="vertical", gap="md"):
+            for row in rows[start:start + FEED_BATCH]:
+                render_card(el, row, handles)
+
+# ---------------- 处理点击（写库语句与之前逐字相同）----------------
+for action, item_id, source_name, handle in handles:
+    if not handle.clicked:
+        continue
+
+    if action == "read":
+        conn.execute("UPDATE items SET is_read = 1 WHERE id = ?", (item_id,))
+        conn.commit()
+    elif action == "save":
+        conn.execute("UPDATE items SET is_saved = 1 WHERE id = ?", (item_id,))
+        add_feedback(source_name, "like", conn)
+        conn.commit()
+    else:
+        conn.execute("UPDATE items SET is_hidden = 1 WHERE id = ?", (item_id,))
+        add_feedback(source_name, "hide", conn)
+        conn.commit()
+    st.rerun()
 
 conn.close()
