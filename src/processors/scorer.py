@@ -1,14 +1,22 @@
 """排序打分：final_score = interest_weight × heat_score × time_decay × source_quality - read_penalty。
 
-trusted 源（sources.yaml 里 trusted: true 的深度源）额外乘 TRUSTED_BOOST：
-这些源更新慢、产出少，按同一套时间衰减会被压到保底分，靠这个系数让好文章多飘一会儿。
+trusted 源（sources.yaml 里 trusted: true 的深度源）额外乘 TRUSTED_BOOST，并且用更慢的
+时间衰减：这些源周更甚至月更，按日更快讯的曲线会被压到保底分，好文章立刻沉底。
 """
 
 import math
 from datetime import datetime, timezone
 
-# trusted 源加成：深度长文更新慢（周更甚至月更），不该和日更快讯同一条衰减曲线
+# trusted 源加成：深度长文产出少，先补一个系数
 TRUSTED_BOOST = 1.5
+
+# 时间衰减的时间常数（exp(-hours / TAU)）：常规源 3 天，trusted 源 7 天。
+# 7 天常数下，一周前的深度文章还有 0.37 的衰减系数（3 天常数下只剩 0.1 保底）。
+TAU_HOURS = 72.0
+TRUSTED_TAU_HOURS = 168.0
+
+# 衰减保底：任何内容都不会归零
+TIME_DECAY_FLOOR = 0.1
 
 
 def calc_final_score(
@@ -23,7 +31,8 @@ def calc_final_score(
       heat_score    float 0-1（RSS 默认 0.5；HN 为 score/500，封顶 1.0）
       is_read / is_hidden / is_saved  bool（已读 -1.0 / 已隐藏 -5.0 / 已收藏 +2.0）
 
-    time_decay = max(exp(-hours / 72), 0.1)：3 天衰减到 0.37；任何内容保底 0.1，不会归零。
+    time_decay = max(exp(-hours / TAU), 0.1)：常规源 TAU=72h（3 天衰减到 0.37），
+    trusted 源 TAU=168h（一周才衰减到 0.37）。任何内容保底 0.1，不会归零。
     trusted=True 时内容分先 × TRUSTED_BOOST，再加/减下面的已读隐藏收藏项
     （惩罚保持绝对值，不随加成放大）。
     """
@@ -36,7 +45,8 @@ def calc_final_score(
         hours = 24.0
     hours = max(hours, 0.0)  # 防止未来时间导致衰减大于 1
 
-    time_decay = max(math.exp(-hours / 72), 0.1)
+    tau = TRUSTED_TAU_HOURS if trusted else TAU_HOURS
+    time_decay = max(math.exp(-hours / tau), TIME_DECAY_FLOOR)
 
     heat_score = item.get("heat_score", 0.5)
     score = interest_weight * heat_score * time_decay * source_quality
