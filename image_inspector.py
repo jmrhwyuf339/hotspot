@@ -14,6 +14,7 @@ import platform
 import shutil
 import subprocess
 import tempfile
+import html
 from pathlib import Path
 
 import streamlit as st
@@ -66,6 +67,187 @@ GROUP_TITLES = {
     "APP14": "🖼 APP14 (Adobe)",
     "PNG": "🖼 PNG 信息",
     "QuickTime": "🎬 QuickTime 信息",
+}
+
+# 常见标签名 -> 中文名（字典里没有的标签原样显示英文，全量对照见右下角 JSON 下载）
+TAG_TITLES = {
+    # 系统 / ExifTool
+    "ExifToolVersion": "ExifTool 版本",
+    "Warning": "警告",
+    "Error": "错误",
+    # File（文件）
+    "FileName": "文件名",
+    "Directory": "所在目录",
+    "FileSize": "文件大小",
+    "FileModifyDate": "文件修改时间",
+    "FileCreateDate": "文件创建时间",
+    "FileAccessDate": "文件访问时间",
+    "FileInodeChangeDate": "文件状态变更时间",
+    "FilePermissions": "文件权限",
+    "FileType": "文件类型",
+    "FileTypeExtension": "扩展名",
+    "MIMEType": "MIME 类型",
+    "ExifByteOrder": "字节序",
+    "EncodingProcess": "编码方式",
+    "BitsPerSample": "位深",
+    "ColorComponents": "颜色分量数",
+    "YCbCrSubSampling": "色度抽样",
+    "ImageWidth": "图像宽度",
+    "ImageHeight": "图像高度",
+    "ImageSize": "图像尺寸",
+    "Megapixels": "像素数（百万）",
+    # IFD0（图像基础）
+    "Make": "设备制造商",
+    "Model": "设备型号",
+    "Orientation": "方向",
+    "XResolution": "水平分辨率",
+    "YResolution": "垂直分辨率",
+    "ResolutionUnit": "分辨率单位",
+    "Software": "处理软件",
+    "ModifyDate": "修改时间",
+    "Artist": "作者",
+    "Copyright": "版权",
+    "HostComputer": "创建主机",
+    "Rating": "评分",
+    "YCbCrPositioning": "色度位置",
+    "WhitePoint": "白点坐标",
+    "PrimaryChromaticities": "原色色度坐标",
+    "YCbCrCoefficients": "色度系数",
+    "ReferenceBlackWhite": "黑白参考值",
+    "ThumbnailOffset": "缩略图数据偏移",
+    "ThumbnailLength": "缩略图数据长度",
+    "ThumbnailWidth": "缩略图宽度",
+    "ThumbnailHeight": "缩略图高度",
+    "ThumbnailImage": "缩略图",
+    "XPKeywords": "关键词",
+    "ExifOffset": "Exif 数据偏移",
+    # ExifIFD（拍摄参数）
+    "ExposureTime": "曝光时间",
+    "FNumber": "光圈值",
+    "ExposureProgram": "曝光程序",
+    "ISO": "感光度 ISO",
+    "ISOSpeedRatings": "感光度 ISO",
+    "SensitivityType": "感光度类型",
+    "RecommendedExposureIndex": "推荐曝光指数",
+    "ExifVersion": "Exif 版本",
+    "FlashpixVersion": "Flashpix 版本",
+    "DateTimeOriginal": "拍摄时间",
+    "CreateDate": "创建时间",
+    "OffsetTime": "时区偏移",
+    "OffsetTimeOriginal": "拍摄时区偏移",
+    "SubSecTimeOriginal": "拍摄时间（亚秒）",
+    "ComponentsConfiguration": "色彩分量配置",
+    "CompressedBitsPerPixel": "压缩位深",
+    "ShutterSpeedValue": "快门速度（APEX）",
+    "ApertureValue": "光圈值（APEX）",
+    "BrightnessValue": "亮度值",
+    "ExposureCompensation": "曝光补偿",
+    "MaxApertureValue": "最大光圈",
+    "SubjectDistance": "被摄距离",
+    "SubjectDistanceRange": "被摄距离范围",
+    "SubjectArea": "主体区域",
+    "MeteringMode": "测光模式",
+    "LightSource": "光源",
+    "Flash": "闪光灯",
+    "FocalLength": "焦距",
+    "FocalLengthIn35mmFormat": "等效焦距（35mm）",
+    "LensInfo": "镜头信息",
+    "LensMake": "镜头制造商",
+    "LensModel": "镜头型号",
+    "LensSerialNumber": "镜头序列号",
+    "LensID": "镜头标识",
+    "Lens": "镜头",
+    "ColorSpace": "色彩空间",
+    "ExifImageWidth": "主图宽度",
+    "ExifImageHeight": "主图高度",
+    "SensingMethod": "感光元件类型",
+    "FileSource": "文件来源",
+    "SceneType": "场景类型",
+    "CustomRendered": "自定义渲染",
+    "ExposureMode": "曝光模式",
+    "WhiteBalance": "白平衡",
+    "DigitalZoomRatio": "数码变焦比",
+    "SceneCaptureType": "场景拍摄类型",
+    "GainControl": "增益控制",
+    "Contrast": "对比度",
+    "Saturation": "饱和度",
+    "Sharpness": "锐度",
+    "BodySerialNumber": "机身序列号",
+    "CameraOwnerName": "相机所有者",
+    "InteropIndex": "互操作索引",
+    "InteropVersion": "互操作版本",
+    # GPS（定位）
+    "GPSVersionID": "GPS 版本",
+    "GPSLatitudeRef": "纬度方向",
+    "GPSLatitude": "纬度",
+    "GPSLongitudeRef": "经度方向",
+    "GPSLongitude": "经度",
+    "GPSAltitudeRef": "海拔基准",
+    "GPSAltitude": "海拔高度",
+    "GPSTimeStamp": "GPS 时间",
+    "GPSDateStamp": "GPS 日期",
+    "GPSDateTime": "GPS 日期时间",
+    "GPSSpeedRef": "速度单位",
+    "GPSSpeed": "移动速度",
+    "GPSTrackRef": "移动方向基准",
+    "GPSTrack": "移动方向",
+    "GPSImgDirectionRef": "拍摄方向基准",
+    "GPSImgDirection": "拍摄方向（正北为 0°）",
+    "GPSHPositioningError": "定位精度（米）",
+    "GPSDOP": "精度因子 DOP",
+    "GPSProcessingMethod": "定位方式",
+    "GPSPosition": "经纬度",
+    # Composite（综合计算）
+    "Aperture": "光圈",
+    "ShutterSpeed": "快门速度",
+    "LightValue": "曝光值 EV",
+    "ScaleFactor35efl": "35mm 等效系数",
+    "CircleOfConfusion": "弥散圆直径",
+    "FOV": "视场角",
+    "FocalLength35efl": "等效焦距",
+    "HyperfocalDistance": "超焦距",
+    "DOF": "景深",
+    "DateTimeCreated": "创建日期时间",
+    "SubSecCreateDate": "创建时间（含亚秒）",
+    "SubSecDateTimeOriginal": "拍摄时间（含亚秒）",
+    # ICC（色彩配置）
+    "ProfileCMMType": "色彩管理厂商",
+    "ProfileVersion": "配置文件版本",
+    "ProfileClass": "配置文件类别",
+    "ColorSpaceData": "色彩空间数据",
+    "ProfileConnectionSpace": "连接空间",
+    "ProfileDateTime": "配置文件生成时间",
+    "ProfileFileSignature": "配置文件签名",
+    "PrimaryPlatform": "主平台",
+    "DeviceManufacturer": "设备制造商",
+    "DeviceModel": "设备型号",
+    "DeviceAttributes": "设备属性",
+    "RenderingIntent": "渲染意图",
+    "ConnectionSpaceIlluminant": "连接空间光源",
+    "ProfileCreator": "配置文件创建者",
+    "ProfileID": "配置文件 ID",
+    "ProfileDescription": "配置文件描述",
+    "ProfileCopyright": "配置文件版权",
+    "MediaWhitePoint": "媒体白点",
+    "MediaBlackPoint": "媒体黑点",
+    "RedTRC": "红色色调曲线",
+    "GreenTRC": "绿色色调曲线",
+    "BlueTRC": "蓝色色调曲线",
+    "ChromaticAdaptation": "色适应矩阵",
+    # XMP / Photoshop / JFIF
+    "XMPToolkit": "XMP 工具包",
+    "CreatorTool": "创建工具",
+    "MetadataDate": "元数据更新时间",
+    "Format": "格式",
+    "SerialNumber": "序列号",
+    "AlreadyApplied": "已应用",
+    "InstanceID": "实例 ID",
+    "DocumentID": "文档 ID",
+    "OriginalDocumentID": "原始文档 ID",
+    "IPTCDigest": "IPTC 摘要",
+    "Comment": "注释",
+    "JFIFVersion": "JFIF 版本",
+    "ColorTransform": "颜色变换",
 }
 
 
@@ -142,9 +324,73 @@ def render_metadata(groups: dict[str, list[tuple[str, object]]]) -> None:
         with st.expander(f"{icon_title}（{len(rows)} 项）", expanded=group in ("File", "IFD0", "ExifIFD", "GPS")):
             for tag, value in rows:
                 v_text = "、".join(str(v) for v in value) if isinstance(value, list) else str(value)
-                st.markdown(f"- **{tag}**：`{v_text}`")
+                cn = TAG_TITLES.get(tag.split(":")[0])  # 兼容 exiftool 给重复标签加的 ":1" 后缀
+                st.markdown(f"- **{cn}（{tag}）**：`{v_text}`" if cn else f"- **{tag}**：`{v_text}`")
     if "GPS" in groups:
         st.warning("⚠️ 此照片包含 GPS 定位信息，分享或发布前请自行确认是否需要抹除坐标！")
+
+
+def human_size(num_bytes: int) -> str:
+    """把字节数变成易读的大小。"""
+    size = float(num_bytes)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} GB"
+
+
+def render_summary(meta: dict, size_bytes: int, gps: dict | None) -> None:
+    """页面顶部：最重要的几项信息，用指标卡片展示。"""
+
+    def first(*keys: str) -> str | None:
+        for key in keys:
+            value = meta.get(key)
+            if value not in (None, ""):
+                return str(value)
+        return None
+
+    make, model = first("IFD0:Make"), first("IFD0:Model")
+    if make and model and make.lower() in model.lower():
+        device = model  # Model 里已带品牌（如 "Apple iPhone 15 Pro"）时不重复
+    else:
+        device = " ".join(x for x in (make, model) if x) or None
+
+    pixels = first("File:ImageSize", "Composite:ImageSize", "ExifIFD:ExifImageSize")
+    if pixels and len(pixels.split()) == 2 and all(p.isdigit() for p in pixels.split()):
+        pixels = "×".join(pixels.split())  # exiftool -n 可能输出 "640 480"，改成 "640×480"
+    megapixels = first("Composite:Megapixels", "File:Megapixels")
+    if pixels and megapixels:
+        pixels = f"{pixels}（{megapixels} MP）"
+
+    taken = first("ExifIFD:DateTimeOriginal", "ExifIFD:CreateDate", "IFD0:ModifyDate")
+    if taken:
+        taken = taken.replace(":", "-", 2)  # 2026:10:18 03:12:45 -> 2026-10-18 03:12:45
+
+    items = [
+        ("📱 设备", device or "未知"),
+        ("🖼 像素尺寸", pixels or "未知"),
+        ("📦 文件大小", human_size(size_bytes)),
+        ("🕒 拍摄时间", taken or "未知"),
+        ("📍 定位信息", "有 GPS" if gps else "无"),
+    ]
+    cards = "".join(
+        f'<div class="kv-card"><div class="kv-label">{label}</div>'
+        f'<div class="kv-value">{html.escape(value)}</div></div>'
+        for label, value in items
+    )
+    st.markdown(
+        """<style>
+        .kv-row { display: flex; flex-wrap: wrap; gap: 12px; }
+        .kv-card { flex: 1 1 160px; min-width: 150px; padding: 10px 14px; border-radius: 10px;
+                   background: var(--secondary-background-color);
+                   border: 1px solid rgba(128, 128, 128, 0.25); }
+        .kv-label { font-size: 0.8rem; opacity: 0.7; }
+        .kv-value { font-size: 1.05rem; font-weight: 600; line-height: 1.35; word-break: break-word; }
+        </style>"""
+        f'<div class="kv-row">{cards}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def extract_gps(meta: dict) -> dict | None:
@@ -228,6 +474,12 @@ try:
         st.caption("尝试执行的命令：`exiftool -json -n -a -G1 -s -charset filename=UTF8 <图片>`")
         st.stop()
 
+    gps = extract_gps(meta)
+
+    st.subheader("📌 关键信息")
+    render_summary(meta, len(uploaded.getvalue()), gps)
+    st.divider()
+
     left, right = st.columns([1, 2.6], gap="medium")
     with left:
         st.subheader("🖼 图片预览")
@@ -237,7 +489,6 @@ try:
         render_metadata(group_metadata(meta))
 
     st.divider()
-    gps = extract_gps(meta)
     if gps:
         st.subheader("🗺 拍摄位置（可拖动、滚轮缩放）")
         render_map(gps)
