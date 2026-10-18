@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 import streamlit as st
+import pydeck as pdk
 
 # ---------- 平台判定 ----------
 IS_WINDOWS = platform.system() == "Windows"
@@ -146,6 +147,68 @@ def render_metadata(groups: dict[str, list[tuple[str, object]]]) -> None:
         st.warning("⚠️ 此照片包含 GPS 定位信息，分享或发布前请自行确认是否需要抹除坐标！")
 
 
+def extract_gps(meta: dict) -> dict | None:
+    """从元数据中提取拍摄位置；没有有效坐标时返回 None。"""
+    gps = {k.split(":", 1)[1]: v for k, v in meta.items() if k.startswith("GPS:")}
+
+    def number(key: str) -> float | None:
+        try:
+            return float(gps[key])
+        except (KeyError, TypeError, ValueError):
+            return None
+
+    lat = lon = None
+    position = gps.get("GPSPosition")  # -n 下形如 "39.9042 116.4074"
+    if isinstance(position, str) and len(position.split()) >= 2:
+        try:
+            lat, lon = (float(x) for x in position.split()[:2])
+        except ValueError:
+            lat = lon = None
+    if lat is None or lon is None:  # 回退：分标签 + Ref 定符号（-n 可能输出无符号小数）
+        lat, lon = number("GPSLatitude"), number("GPSLongitude")
+        if lat and str(gps.get("GPSLatitudeRef", "")).upper().startswith("S"):
+            lat = -lat
+        if lon and str(gps.get("GPSLongitudeRef", "")).upper().startswith("W"):
+            lon = -lon
+    if lat is None or lon is None or (lat == 0 and lon == 0):
+        return None  # 无坐标，或 (0,0) 这种无效定位
+    alt = number("GPSAltitude")
+    if alt is not None and str(gps.get("GPSAltitudeRef", "0")).startswith("1"):
+        alt = -alt  # 海平面以下为负
+    stamp = " ".join(str(gps[k]) for k in ("GPSDateStamp", "GPSTimeStamp") if gps.get(k))
+    return {"lat": lat, "lon": lon, "alt": alt, "acc": number("GPSHPositioningError"), "stamp": stamp}
+
+
+def render_map(gps: dict) -> None:
+    """页面下方的交互式地图：打点 + 精度圈 + 悬停详情 + 外部地图链接。"""
+    lat, lon, acc = gps["lat"], gps["lon"], gps["acc"]
+    details = [f"纬度 {lat:.6f}", f"经度 {lon:.6f}"]
+    if gps["alt"] is not None:
+        details.append(f"海拔 {gps['alt']:.1f} 米")
+    if acc:
+        details.append(f"定位精度 ±{acc:.0f} 米")
+    if gps["stamp"]:
+        details.append(f"GPS 时间 {gps['stamp']}")
+
+    layers = [pdk.Layer("ScatterplotLayer", data=[gps], get_position=["lon", "lat"],
+                        get_fill_color=[230, 57, 70, 200], get_radius=12,
+                        radius_min_pixels=8, radius_max_pixels=28, pickable=True)]
+    if acc:  # 精度圈：半径 = GPSHPositioningError（米）
+        layers.append(pdk.Layer("ScatterplotLayer", data=[gps], get_position=["lon", "lat"],
+                                get_fill_color=[230, 57, 70, 40], get_radius=acc, pickable=False))
+    st.pydeck_chart(pdk.Deck(
+        layers=layers,
+        initial_view_state=pdk.ViewState(latitude=lat, longitude=lon, zoom=13 if (acc or 0) >= 100 else 16),
+        map_style="light",
+        tooltip={"html": "<br/>".join(details), "style": {"backgroundColor": "#222", "color": "#fff"}},
+    ))
+    st.caption(" · ".join(details))
+    c1, c2, _ = st.columns([1, 1, 4])
+    c1.link_button("🌍 OpenStreetMap", f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}")
+    c2.link_button("🧭 高德地图", f"https://uri.amap.com/marker?position={lon},{lat}")
+    st.caption("提示：高德等国内地图使用 GCJ-02 坐标系，与照片中的 WGS-84 坐标存在少量偏移。")
+
+
 # ---------- 主入口 ----------
 uploaded = st.file_uploader("上传图片（支持 JPG / PNG / HEIC / WebP / TIFF / GIF 等）",
                             type=["jpg", "jpeg", "jfif", "png", "heic", "heif", "webp", "tif", "tiff", "gif", "avif", "bmp"])
@@ -172,6 +235,14 @@ try:
     with right:
         st.subheader("📋 元数据（ExifTool 结果）")
         render_metadata(group_metadata(meta))
+
+    st.divider()
+    gps = extract_gps(meta)
+    if gps:
+        st.subheader("🗺 拍摄位置（可拖动、滚轮缩放）")
+        render_map(gps)
+    else:
+        st.caption("📍 无位置信息")
 finally:
     # 无论成功还是失败，都删除临时文件
     try:
