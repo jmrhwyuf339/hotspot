@@ -88,9 +88,17 @@ streamlit run image_inspector.py
 ### 常用命令
 
 ```bash
-pytest          # 跑测试
-ruff check .    # 代码检查
-python run_fetch.py   # 手动抓取 + 打分 + 入库
+# 手动抓一次：抓取 → 过滤 → 打分 → 去重 → 写入 hotspot.db
+python run_fetch.py
+```
+
+下面两条是开发时用的，`requirements.txt` 里没有它们，要先自己装：
+
+```bash
+pip install pytest ruff   # 装一次就行
+
+pytest                    # 跑测试。提醒：仓库目前还没有 tests/ 目录，现在跑只会显示「0 个测试」
+ruff check .              # 代码检查（AGENTS.md 里约定的检查命令）
 ```
 
 ---
