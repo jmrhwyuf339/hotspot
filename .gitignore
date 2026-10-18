@@ -2,3 +2,5 @@ venv/
 __pycache__/
 *.pyc
 .agents/
+tools/exiftool.exe
+tools/exiftool_files/
