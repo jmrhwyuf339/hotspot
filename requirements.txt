@@ -1,7 +1,8 @@
 httpx>=0.27
 feedparser>=6.0
 pyyaml>=6.0
-streamlit>=1.60
+streamlit==1.66.0      # 锁版本：2026-10-21 发布的 1.66.1 在云端启动崩溃（重部署后 500），先固定在验证可用的 1.66.0
+pyarrow==25.0.1        # 锁版本：pyarrow 25.0.0 有启动段错误 SIGSEGV（apache/arrow#50471），25.0.1 正常
 pydeck>=0.9          # 地图底图渲染，显式声明以防 Streamlit 升级后不再自带
 deep-translator>=1.11
 streamlit-shadcn-ui>=1.4
