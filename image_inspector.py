@@ -315,7 +315,7 @@ def render_image(file_bytes: bytes, name: str) -> None:
                        mime="application/json", width="stretch")
 
 
-def render_metadata(groups: dict[str, list[tuple[str, object]]]) -> None:
+def render_metadata(groups: dict[str, list[tuple[str, object]]], gps: dict | None) -> None:
     """右栏：按组折叠显示全部元数据 k/v。"""
     order = list(GROUP_TITLES) + sorted(set(groups) - set(GROUP_TITLES))
     for group in order:
@@ -328,7 +328,7 @@ def render_metadata(groups: dict[str, list[tuple[str, object]]]) -> None:
                 v_text = "、".join(str(v) for v in value) if isinstance(value, list) else str(value)
                 cn = TAG_TITLES.get(tag.split(":")[0])  # 兼容 exiftool 给重复标签加的 ":1" 后缀
                 st.markdown(f"- **{cn}（{tag}）**：`{v_text}`" if cn else f"- **{tag}**：`{v_text}`")
-    if "GPS" in groups:
+    if gps:  # 仅当 extract_gps 真正解析出有效经纬度时才警告（GPS 组里可能只有版本号等空壳标签）
         st.warning("⚠️ 此照片包含 GPS 定位信息，分享或发布前请自行确认是否需要抹除坐标！")
 
 
@@ -555,7 +555,7 @@ try:
         render_image(uploaded.getvalue(), uploaded.name)
     with right:
         st.subheader("📋 元数据（ExifTool 结果）")
-        render_metadata(group_metadata(meta))
+        render_metadata(group_metadata(meta), gps)
 
     st.divider()
     if gps:
